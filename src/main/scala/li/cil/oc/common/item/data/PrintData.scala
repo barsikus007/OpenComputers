@@ -9,7 +9,7 @@ import li.cil.oc.common.item.data.PrintData.Shape
 import li.cil.oc.util.ExtendedAABB._
 import li.cil.oc.util.ExtendedNBT._
 import net.minecraft.item.ItemStack
-import net.minecraft.nbt.NBTTagCompound
+import net.minecraft.nbt._
 import net.minecraft.util.AxisAlignedBB
 import net.minecraftforge.common.util.Constants.NBT
 
@@ -199,7 +199,26 @@ object PrintData {
         AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ)
       }
       else {
-        val bounds = nbt.getByteArray("bounds").padTo(6, 0.toByte)
+        // Defensive read: accept either a byte array or a list of bytes.
+        val boundsBytes: Array[Byte] = try {
+          nbt.getTag("bounds") match {
+            case b: NBTTagByteArray => b.func_150292_c()
+            case l: NBTTagList =>
+              // convert NBTTagList of NBTTagByte into Array[Byte]
+              // ExtendedNBT provides toArray[T], so we can use that.
+              val byteTags = l.toArray[NBTTagByte]
+              byteTags.map(_.func_150290_f().toByte)
+            case _ =>
+              // fallback: try existing API (may still throw, but we try)
+              nbt.getByteArray("bounds")
+          }
+        } catch {
+          case _: Throwable =>
+            // be conservative: try old API if direct matching fails
+            try nbt.getByteArray("bounds") catch { case _: Throwable => Array.emptyByteArray }
+        }
+
+        val bounds = boundsBytes.padTo(6, 0.toByte)
         val minX = bounds(0) / 16f
         val minY = bounds(1) / 16f
         val minZ = bounds(2) / 16f
